@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image to PNG Converter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; display:flex; justify-content:center; align-items:center; padding:20px; }
+        .container { background:white; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.1); width:100%; max-width:980px; overflow:hidden; }
+        header { background:linear-gradient(135deg,#4b6cb7 0%,#182848 100%); color:white; padding:25px 30px; text-align:center; }
+        h1 { font-size:28px; margin-bottom:8px; }
+        .subtitle { font-size:16px; opacity:0.95; }
+        .main-content { display:flex; flex-wrap:wrap; padding:25px; gap:20px; }
+        .upload-section, .preview-section { flex:1; min-width:300px; padding:20px; }
+        .preview-section { border-left:1px solid #eee; }
+        .upload-area { border:2px dashed #4b6cb7; border-radius:8px; padding:30px 20px; text-align:center; cursor:pointer; transition:all .25s; margin-bottom:18px; user-select:none; }
+        .upload-area:hover, .upload-area.dragging { background:#f0f7ff; border-color:#3a5795; }
+        .upload-icon { font-size:48px; color:#4b6cb7; margin-bottom:12px; }
+        .file-input { display:none; }
+        .preview-container { width:100%; height:300px; border:1px solid #ddd; border-radius:8px; margin-bottom:12px; display:flex; justify-content:center; align-items:center; overflow:hidden; background:#f9f9f9; padding:8px; }
+        .preview-image { max-width:100%; max-height:100%; display:none; }
+        .controls { margin-top:10px; display:flex; flex-direction:column; gap:10px; }
+        .control-row { display:flex; gap:10px; align-items:center; }
+        label { display:block; margin-bottom:6px; font-weight:600; color:#333; }
+        input[type="range"] { width:100%; }
+        .size-display { display:flex; justify-content:space-between; margin-top:5px; font-size:14px; color:#666; }
+        .btn { background:linear-gradient(135deg,#4b6cb7 0%,#182848 100%); color:white; border:none; border-radius:6px; padding:10px 14px; font-size:15px; cursor:pointer; transition:all .18s; }
+        .btn:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,0.12); }
+        .btn:disabled { background:#ccc; cursor:not-allowed; transform:none; box-shadow:none; }
+        .info-box { background:#f0f7ff; border-left:4px solid #4b6cb7; padding:12px; border-radius:4px; font-size:14px; }
+        .meta { font-size:14px; color:#444; }
+        input[type="text"] { padding:8px 10px; border-radius:6px; border:1px solid #ddd; width:100%; }
+        select { padding:8px 10px; border-radius:6px; border:1px solid #ddd; }
+        .message { padding:8px 10px; border-radius:6px; font-size:14px; display:none; }
+        .message.error { background:#ffecec; color:#b00020; border:1px solid #f5c6cb; }
+        .message.warn { background:#fff4e5; color:#7a4b00; border:1px solid #f0c87b; }
+        footer { text-align:center; padding:14px; border-top:1px solid #eee; color:#666; font-size:14px; }
+        @media (max-width:768px) { .preview-section { border-left:none; border-top:1px solid #eee; } .preview-container { height:220px; } }
+    </style>
+</head>
+<body>
+    <div class="container" role="main" aria-labelledby="title">
+        <header>
+            <h1 id="title">Image to PNG Converter</h1>
+            <p class="subtitle">Upload image, resize safely, and download high-quality PNG</p>
+        </header>
+
+        <div class="main-content">
+            <div class="upload-section" aria-label="Upload section">
+                <div id="uploadArea" class="upload-area" tabindex="0" role="button" aria-label="Upload or drop image here">
+                    <div class="upload-icon">📁</div>
+                    <h3>Upload Your Image</h3>
+                    <p>Click or drag & drop an image file here</p>
+                    <input type="file" id="fileInput" class="file-input" accept="image/*" aria-hidden="true">
+                </div>
+
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="sizeSlider">Resize Factor: <span id="sizeValue">150%</span></label>
+                        <input type="range" id="sizeSlider" min="10" max="500" value="150" aria-label="Resize factor">
+                        <div class="size-display"><span>10%</span><span>500%</span></div>
+                    </div>
+
+                    <div class="control-row">
+                        <div style="flex:1">
+                            <label for="qualitySelect">Interpolation / Quality</label>
+                            <select id="qualitySelect" aria-label="Image quality">
+                                <option value="high" selected>High (best)</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low (fast)</option>
+                            </select>
+                        </div>
+                        <div style="width:160px">
+                            <label for="filenameInput">Output filename</label>
+                            <input id="filenameInput" type="text" placeholder="my-image" aria-label="Output filename">
+                        </div>
+                    </div>
+
+                    <div class="control-row">
+                        <button id="convertBtn" class="btn" disabled aria-disabled="true">Convert to PNG</button>
+                        <button id="resetBtn" class="btn" style="background:#777" aria-label="Reset">Reset</button>
+                    </div>
+
+                    <div id="msg" class="message" role="status" aria-live="polite"></div>
+
+                    <div class="info-box" aria-hidden="false">
+                        <h3>How it works</h3>
+                        <p>Upload any image (JPG, PNG, GIF...). Choose resize %, interpolation quality, and download a PNG. Large output is capped to avoid browser memory issues.</p>
+                    </div>
+
+                    <div style="margin-top:8px" class="meta" id="fileMeta"></div>
+                </div>
+            </div>
+
+            <div class="preview-section" aria-label="Preview section">
+                <h3>Preview</h3>
+                <div class="preview-container" id="previewContainer">
+                    <img id="previewImage" class="preview-image" alt="Preview image">
+                    <p id="previewText">Your image will appear here</p>
+                </div>
+
+                <div id="downloadSection" style="display:none;">
+                    <h3>Download Your PNG</h3>
+                    <a id="downloadLink" class="btn" download>Download PNG Image</a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>© <span id="year"></span> Image to PNG Converter | Professional Image Processing Tool</p>
+        </footer>
+    </div>
+
+    <script>
+        // Constants
+        const MAX_CANVAS_PIXELS = 10000 * 10000; // absolute cap (width*height) to avoid crashes
+        const MAX_DIMENSION = 10000; // per-side cap
+
+        // Elements
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const previewImage = document.getElementById('previewImage');
+        const previewText = document.getElementById('previewText');
+        const previewContainer = document.getElementById('previewContainer');
+        const sizeSlider = document.getElementById('sizeSlider');
+        const sizeValue = document.getElementById('sizeValue');
+        const convertBtn = document.getElementById('convertBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const downloadSection = document.getElementById('downloadSection');
+        const downloadLink = document.getElementById('downloadLink');
+        const fileMeta = document.getElementById('fileMeta');
+        const msg = document.getElementById('msg');
+        const qualitySelect = document.getElementById('qualitySelect');
+        const filenameInput = document.getElementById('filenameInput');
+
+        let originalImage = null;
+        let originalFile = null;
+
+        // Set footer year
+        document.getElementById('year').textContent = new Date().getFullYear();
+
+        function showMessage(text, type='') {
+            msg.style.display = 'block';
+            msg.className = 'message' + (type ? ' ' + type : '');
+            msg.textContent = text;
+            if (type === 'error') msg.setAttribute('role','alert');
+            setTimeout(() => {
+                // leave error visible longer
+                if (type !== 'error') msg.style.display = 'none';
+            }, type === 'error' ? 8000 : 3500);
+        }
+
+        // Upload area interactions
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragging'); });
+        uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('dragging'); });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragging');
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) handleFileSelect(this.files[0]);
+        });
+
+        sizeSlider.addEventListener('input', () => { sizeValue.textContent = sizeSlider.value + '%'; });
+
+        resetBtn.addEventListener('click', resetAll);
+
+        convertBtn.addEventListener('click', convertToPNG);
+
+        function resetAll() {
+            originalImage = null;
+            originalFile = null;
+            previewImage.style.display = 'none';
+            previewImage.src = '';
+            previewText.style.display = 'block';
+            downloadSection.style.display = 'none';
+            fileMeta.textContent = '';
+            convertBtn.disabled = true;
+            filenameInput.value = '';
+            showMessage('Reset complete.', ''); 
+        }
+
+        function humanFileSize(size) {
+            if (size === 0) return '0 B';
+            const i = Math.floor(Math.log(size) / Math.log(1024));
+            const sizes = ['B','KB','MB','GB','TB'];
+            return (size / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+        }
+
+        function handleFileSelect(file) {
+            if (!file.type.match('image.*')) {
+                showMessage('Please select an image file.', 'error');
+                return;
+            }
+            originalFile = file;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                originalImage = new Image();
+                originalImage.onload = function() {
+                    previewImage.src = e.target.result;
+                    previewImage.style.display = 'block';
+                    previewText.style.display = 'none';
+                    convertBtn.disabled = false;
+                    convertBtn.setAttribute('aria-disabled', 'false');
+
+                    fileMeta.innerHTML = `<strong>File:</strong> ${escapeHtml(file.name)} · <strong>Type:</strong> ${file.type} · <strong>Size:</strong> ${humanFileSize(file.size)} · <strong>Dimensions:</strong> ${originalImage.width}×${originalImage.height}px`;
+                    // suggest filename
+                    const nameOnly = file.name.replace(/\.[^/.]+$/, "");
+                    filenameInput.value = nameOnly;
+                };
+                originalImage.onerror = function() {
+                    showMessage('Unable to load image. The file may be corrupted.', 'error');
+                };
+                originalImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            downloadSection.style.display = 'none';
+            msg.style.display = 'none';
+        }
+
+        function convertToPNG() {
+            if (!originalImage) { showMessage('No image loaded.', 'error'); return; }
+
+            const factor = parseInt(sizeSlider.value, 10) / 100;
+            let newWidth = Math.round(originalImage.width * factor);
+            let newHeight = Math.round(originalImage.height * factor);
+
+            // safety caps
+            if (newWidth > MAX_DIMENSION) {
+                showMessage(`Width too large: capping to ${MAX_DIMENSION}px.`, 'warn');
+                const ratio = MAX_DIMENSION / newWidth;
+                newWidth = MAX_DIMENSION;
+                newHeight = Math.round(newHeight * ratio);
+            }
+            if (newHeight > MAX_DIMENSION) {
+                showMessage(`Height too large: capping to ${MAX_DIMENSION}px.`, 'warn');
+                const ratio = MAX_DIMENSION / newHeight;
+                newHeight = MAX_DIMENSION;
+                newWidth = Math.round(newWidth * ratio);
+            }
+            // pixel count safety
+            if (newWidth * newHeight > MAX_CANVAS_PIXELS) {
+                showMessage('Requested output is too large for this browser. Choose smaller size.', 'error');
+                return;
+            }
+
+            // Create canvas and draw
+            const canvas = document.createElement('canvas');
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+            const ctx = canvas.getContext('2d');
+
+            // smoothing based on quality
+            ctx.imageSmoothingEnabled = true;
+            const quality = qualitySelect.value;
+            if (quality === 'high') ctx.imageSmoothingQuality = 'high';
+            else if (quality === 'medium') ctx.imageSmoothingQuality = 'medium';
+            else ctx.imageSmoothingQuality = 'low';
+
+            try {
+                ctx.drawImage(originalImage, 0, 0, newWidth, newHeight);
+            } catch (err) {
+                showMessage('Error drawing image on canvas: ' + err.message, 'error');
+                return;
+            }
+
+            // Convert to PNG
+            try {
+                const pngDataUrl = canvas.toDataURL('image/png');
+                previewImage.src = pngDataUrl;
+                previewImage.style.display = 'block';
+                previewText.style.display = 'none';
+
+                // filename handling
+                let outName = (filenameInput.value || 'converted_image').trim();
+                // sanitize: remove extension if provided and bad chars
+                outName = outName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_ ]/g, '_');
+                const finalFilename = outName + '.png';
+
+                downloadLink.href = pngDataUrl;
+                downloadLink.download = finalFilename;
+                downloadLink.textContent = `Download ${finalFilename}`;
+                downloadSection.style.display = 'block';
+
+                // update meta with new dimensions and approximate size
+                const approxBytes = Math.round((pngDataUrl.length - 'data:image/png;base64,'.length) * 3/4);
+                fileMeta.innerHTML += `<br><strong>Output:</strong> ${newWidth}×${newHeight}px · approx ${humanFileSize(approxBytes)}`;
+
+                // scroll to download
+                downloadSection.scrollIntoView({ behavior: 'smooth' });
+                showMessage('Conversion complete. Click download to save the PNG.');
+            } catch (err) {
+                showMessage('Error generating PNG: ' + err.message, 'error');
+            }
+        }
+
+        // small helper to escape display
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"'`=\/]/g, function(s) {
+                return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#x60;','=':'&#x3D;'}[s]);
+            });
+        }
+    </script>
+</body>
+</html>
